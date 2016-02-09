@@ -1,0 +1,18 @@
+# paths to compiler
+MPF90=mpif90
+MPF77=mpif90
+PYTHON=python
+AR = ar
+RANLIB = ranlib
+
+#Directories for libs and includes
+HPIX_DIR=/usr/local/Healpix_3.20/
+
+#Need to explicitly tell gfortran to look in /usr/include
+FFTW_DIR=/usr
+
+#flags
+F90COMP = -m64  -I$(HPIX_DIR)/include  -O3 -ffixed-line-length-none -ffree-line-length-none -I${FFTW_DIR}/include
+FCOMP = -m64  -I$(HPIX_DIR)/include  -O3 -ffixed-line-length-none -ffree-line-length-none
+LINK =  -L$(HPIX_DIR)/lib   -lcfitsio -lfftw3 -m64 -lhealpix -O3 -lgomp
+

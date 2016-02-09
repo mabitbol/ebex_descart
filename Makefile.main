@@ -1,0 +1,40 @@
+TOOLS    = ds_utils.o ds_types.o fits_helper.o ds_mapping.o inifile.o 
+
+
+PYTHON ?= python
+
+ifeq ($(USE_HDF),1)
+	F90COMP += -DHAVE_HDF
+endif
+
+OBJ      = ds_multidetector.o ds_simple_prior.o ds_solver.o \
+           ds_solver.o fl_lists.o ds_cbass_options.o  ds_cbasstools.o 
+
+all : descart_cbass
+
+descart_cbass : libdescart.a ds_cbass.o
+	$(MPF90) -o descart_cbass ds_cbass.o libdescart.a $(F90COMP) $(LINK) 
+
+
+libdescart.a : $(TOOLS) $(OBJ)
+	$(AR) $(ARFLAGS) libdescart.a $(TOOLS) $(OBJ)
+	$(RANLIB) libdescart.a
+
+ds_cbass_options.f90: build_options.py
+	$(PYTHON) build_options.py ds_cbass_options.f90
+
+%.o : %.F90
+	$(MPF90) $(F90COMP)  -c  $<
+
+%.o : %.f90
+	$(MPF90) $(F90COMP)  -c $<
+
+%.o : %.f
+	$(MPF77) $(FCOMP)  -c $<
+
+%.o : %.c
+	$(MPCC) $(CCOMP)  -c $< 
+
+clean :
+	@rm -f *.o *.mod *.MOD *.a *~ descart_cbass
+	@rm -f ds_cbass_options.f90 default_params.ini short_params.ini
