@@ -43,7 +43,6 @@ type ds_modulescan
     type(ds_offsets),pointer :: offsets  !Will rename later.
     integer, dimension(3) :: id !JAZ - run, scan, seg
     real(dp) :: scanfreq
-    logical :: has_white_correlations
     logical :: has_leakage_matrix
     real(dp), dimension(:), pointer :: leakage
 end type ds_modulescan
@@ -483,7 +482,6 @@ subroutine copy_modulescan(source,dest,duplicateoffsets,duplicatetimestreams,sha
     dest%has_T = source%has_T
     dest%has_P = source%has_P
 
-    dest%has_white_correlations = source%has_white_correlations
     dest%has_leakage_matrix = source%has_leakage_matrix
     dest%leakage = source%leakage
 	

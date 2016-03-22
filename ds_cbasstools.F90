@@ -81,7 +81,6 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
 	integer(i8b) :: full_map_pixels
 	character(256), dimension(:) :: fileList
 	type(fl_string80_list) :: output_fits_cards
-	logical, parameter ::  do_correlations = .false.
 	integer progress
 	!Information about the data to be loaded.
 	integer nmodules
@@ -103,7 +102,6 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
 	integer ntod,na
 	type(ds_moduleScan), pointer :: scan
 	type(ds_moduleScanInfo), pointer :: scanInfo
-	type(ds_map) :: mask
 	!Iteration variables and misc
 	integer(i4b) :: unit,one, ierr,dummy
 	integer ms,i,j,t
@@ -209,7 +207,6 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
             scanInfo=>scanInfo%next
         enddo
 
-        if ((.not. do_correlations) .and. correlator%proc==0) write(*,*) "Cross-correlation deactivated"
         call prepareTriMap(maps,npix, opt%do_temperature, opt%do_polarization, zero_based = .true.)  !Healpix maps are zero-based.  For now this is a healpix map.
         call setupScans(scans,scanList,rank)
 
@@ -220,6 +217,7 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
         haveBadScans=.false.
         progress=0
         current_filename=""
+
         !Loop through the moduleScanList.  Check if this proc is responsible for the corresponding moduleScan.
         !If so, read it in and process it.
         do 
@@ -250,17 +248,12 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
                 current_filename = scanInfo%filename
             endif
             
-            !Find the correct location in the tod_data for the current diode data, 
-            !and the correct moduleScan object to save that data in.
             ms = scanInfo%modScan
             scan=>scans(ms)
             write(message, '(A,I3)') " - Loaded scan ", scan_number_in_file
             call ds_log(message,ds_feedback_debug)
             scan_number_in_file = scan_number_in_file + 1
             ntod = scanInfo%last_index - scanInfo%first_index + 1
-            !If the offset has the special length -1 
-            !Then that means to just use a single offset per modulescan
-            !Essentially to just fix a global offset
             if (opt%offsetLength .ne. -1) then
                 na = ntod/opt%offsetLength
                 ntod = na * opt%offsetLength
@@ -268,36 +261,21 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
             scan%ntod=ntod
 
             call buildNoiseInfo(scanInfo,NoiseInfo(ms),mjd,opt)
-            !ANDREA here you need to add some code to load in a leakage matrix for each 
-            !file.  Not sure how you want to do this.
-
-            call get_scan_from_fits(scanInfo,full_file_data,detector_list,noiseinfo(ms),scan,opt,mask)
-
-            scan%inv_Cw=0.0
-            !This is a good place to get the priors if we want to do it directly from the data.
+            call get_scan_from_fits(scanInfo,full_file_data,detector_list,noiseinfo(ms),scan,opt)
             if (opt%data_prior) call prepare_one_data_prior(correlator,opt%offsetLength,noiseinfo(ms),scan)
-
-            !build inverse covariance matrix from variances and correlations
-            !we already filled in the sigmas above
-            call make_inv_Cw(noiseInfo(ms),scan,do_correlations)
-            !apply the inverse covariance matrix in moduleScan to the timestreams in moduleScan
+            call make_inv_Cw(noiseInfo(ms),scan)
             call invCw_mult_tod(scan)
-            !add module scan to accumulated healpix map
             call add2rhs(scan,maps)
-            !deproject moduleScan%timestream -> moduleScan offsets
 
-            !When we have done this we no longer need the timestream so we deallocate it		
             call deprojectTimestreamOntoOffset(scan%timestreams,scan%offsets,scan%flagged)
             call destroyTimestream(scan%timestreams)
             if (.not. associated(scanInfo%next)) exit
             scanInfo=>scanInfo%next
         enddo
+
         if (allocated(nScan_proc)) deallocate(nScan_proc)
         write(message,*) "Rank ", rank," loaded all data."
         call ds_log(message,ds_feedback_debug)
-        !If any of the scans were bad and did not load, quit here
-        !The user should supply a better accepted list!
-        !We may want to reconsider this behaviour.
         call ds_assert(.not. haveBadScans, "Bad scans reported")
         if (rank==0) call ds_log_milestone("DATA_LOADED")
         full_map_pixels = npix
@@ -566,7 +544,7 @@ subroutine load_noise_columns(unit, nscan, noise_data, status, opt)
 end subroutine
 
 
-subroutine get_scan_from_fits(info,full_data,detector_list,noise,moduleScan,opt, mask)
+subroutine get_scan_from_fits(info,full_data,detector_list,noise,moduleScan,opt)
 	type(ds_cbass_options) :: opt
 	type(ds_moduleScanInfo) :: info
 	type(ds_noiseInfo) :: noise
@@ -587,7 +565,6 @@ subroutine get_scan_from_fits(info,full_data,detector_list,noise,moduleScan,opt,
 	integer offsetLength
 	integer detector_index
 	real(dp) :: delta_ra, delta_dec
-	type(ds_map) :: mask
 
         real(dp), allocatable, dimension(:) :: rot_roll
 	
@@ -888,7 +865,6 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
 	type(ds_correlator) :: correlator
 	type(ds_cbass_options) :: opt
 	type(ds_modulescan), dimension(0:correlator%my_nmodules-1) :: moduleScans
-!	type(ds_covariance) :: covariance
 	integer(i8b) :: maxIndex
 	integer min_hits
 	integer(i8b), allocatable, dimension(:) :: originalIndices
@@ -897,11 +873,6 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
 	integer (i4b), allocatable, dimension(:) :: hitCount
 	integer i,d,n,p,q,t,nbad
 	integer ierror
-	character(len=1) :: mask_coordsys
-	integer mask_nside, map_nside
-	real(dp), dimension(:,:), allocatable :: mask_map_data
-	real(dp), dimension(:), allocatable :: mask
-	integer nmasked
 
 	min_hits = opt%min_hits
 	!Each process builds its own hit count map in healpix format
@@ -1104,8 +1075,8 @@ subroutine buildLeakageInfo(info, scan, opt)
             scan%leakage(1) = 1.0
             scan%leakage(2) = 0.5
             scan%leakage(3) = 0.0
-            scan%has_leakage_matrix = .true.
-            !scan%has_leakage_matrix = .false.
+            !scan%has_leakage_matrix = .true.
+            scan%has_leakage_matrix = .false.
 	endif
 end subroutine buildLeakageInfo
 

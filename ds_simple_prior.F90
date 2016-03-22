@@ -59,6 +59,7 @@ subroutine prepare_prior(correlator,lc,nyquist,noiseinfo,modulescan)
     type(ds_offsets),pointer :: offsets  !dummy for ease of reading
 
     !## This chunk of code prepares the correlator type ##!
+    write(*,*) "do we get into prepare prior"
 
     ierror= 0 
     !figure out the mpi context - size and rank.
@@ -88,8 +89,8 @@ subroutine prepare_prior(correlator,lc,nyquist,noiseinfo,modulescan)
         offsets%ownscorrelators= .true.
         !build Qinv using pe-existing function
         allocate(offsets%Qinv(fftlength))
-        call buildOneCorrelator(modulescan(m)%ntod, lc, noiseinfo(m)%sigma**2 ,1.0_8, &
-        noiseinfo(m)%fknee,noiseinfo(m)%alpha,nyquist,offsets%Qinv, .true.)
+        call buildOneCorrelator(modulescan(m)%ntod, lc, noiseinfo(m)%sigma**2, &
+                noiseinfo(m)%fknee,noiseinfo(m)%alpha,nyquist,offsets%Qinv, .true.)
         offsets%Qinv= 1.0_8 / offsets%Qinv
         beta = real(lc,kind=8) / ( noiseinfo(m)%sigma**2 )
         !build preconditioner Pinv
@@ -147,84 +148,73 @@ subroutine prepare_one_data_prior(correlator,lc,noiseinfo,modulescan)
 end subroutine prepare_one_data_prior
 
 
-subroutine buildOneCorrelator(nt,lc,whiteNoiseVariance,rho,fknee,alpha,nyquist,offsetPower,includeWhite)
-real(dp) :: whiteNoiseVariance,fknee,alpha
-integer lc
-integer nt
-integer na
-logical includeWhite
-real(dp), allocatable, dimension(:) :: timeCorrelator, offsetCorrelator
-character(128) :: message
-complex(dpc), dimension(:) :: offsetPower
-complex(dpc), dimension(:), allocatable :: timePower
-integer k,a,i,t1,t2, j
-real(dp) :: dk, sigma_min1, sigma, rho, nyquist
+subroutine buildOneCorrelator(nt,lc,whiteNoiseVariance,fknee,alpha,nyquist,offsetPower,includeWhite)
+    real(dp) :: whiteNoiseVariance,fknee,alpha
+    integer lc
+    integer nt
+    integer na
+    logical includeWhite
+    real(dp), allocatable, dimension(:) :: timeCorrelator, offsetCorrelator
+    character(128) :: message
+    complex(dpc), dimension(:) :: offsetPower
+    complex(dpc), dimension(:), allocatable :: timePower
+    integer k,a,i,t1,t2, j
+    real(dp) :: dk, sigma_min1, sigma, nyquist
 
-	na = nt/lc
-	call ds_assert(size(offsetPower)==na/2+1,"Wrong sized offsetPower")
-	write(message,*) "Wrong sign convention for alpha; should be less than zero (",alpha,")"
-	call ds_assert(alpha<0,message)
-	if (rho==0) then
-!		allocate(offsetPower(1:na/2+1) )
-		offsetPower = dcmplx(0,0)
-	   if (includeWhite) offsetPower = whiteNoiseVariance/lc
-		return
-	endif
+    whiteNoiseVariance = 2.0_dp * whiteNoiseVariance
 
+    na = nt/lc
+    call ds_assert(size(offsetPower)==na/2+1,"Wrong sized offsetPower")
+    write(message,*) "Wrong sign convention for alpha; should be less than zero (",alpha,")"
+    call ds_assert(alpha<0,message)
+    allocate(timePower(0:nt/2) )
 
-   allocate(timePower(0:nt/2) )
+    !Build the power spectrum
+    timePower(0)=cmplx(0.0_dp,0.0_dp,kind=dpc)
+    dk = 2.0_dp * nyquist / nt
+    do k=1,nt/2
+        timePower(k) = dcmplx( (1.0_dp / k / dk)**(-alpha), 0.0_dp)
+    enddo
 
-   !Build the power spectrum
-   timePower(0)=cmplx(0.0_dp,0.0_dp,kind=dpc)
-   dk = 2.0_dp * nyquist / nt
-   do k=1,nt/2
-      timePower(k) = dcmplx( (1.0_dp / k / dk)**(-alpha), 0.0_dp)
-   enddo
+    !Convert power to time correlator
+    allocate(timeCorrelator(0:nt-1) )
+    call ds_ifft(timePower,timeCorrelator)
+    deallocate(timePower)
 
-   !Convert power to time correlator
-   allocate(timeCorrelator(0:nt-1) )
-   call ds_ifft(timePower,timeCorrelator)
-   deallocate(timePower)
-
-   !convert time correlator to offset correlator, for off-diagonal components
-   allocate(offsetCorrelator(1:na) )
-   offsetCorrelator=0
-   do a= 1,na					!a indexes the offset
-      do i= 0,lc-1				!i indexes the time element in the offset
-         t1= (a-1)*lc+i 		!t1 is the time index of the i'th element in offset a
-         if(i == 0) then							!only need to do sum once per a
-         
-         	!replace with a forall with mask?
+    !convert time correlator to offset correlator, for off-diagonal components
+    allocate(offsetCorrelator(1:na) )
+    offsetCorrelator=0
+    do a= 1,na					!a indexes the offset
+        do i= 0,lc-1				!i indexes the time element in the offset
+        t1= (a-1)*lc+i 		!t1 is the time index of the i'th element in offset a
+        if(i == 0) then							!only need to do sum once per a
             do t2= 0,lc-1
-               if(abs(t1 - t2).le.nt) then
-                  offsetCorrelator(a)= offsetCorrelator(a) + timeCorrelator(abs(t1 - t2))
-               endif
+                if(abs(t1 - t2).le.nt) then
+                    offsetCorrelator(a)= offsetCorrelator(a) + timeCorrelator(abs(t1 - t2))
+                endif
             enddo
             sigma_min1= offsetCorrelator(a)				!first row's sum
-         else									
-         	!following rows sum is sigma_min1 + new end element - old start element
+        else									
+            !following rows sum is sigma_min1 + new end element - old start element
             sigma = sigma_min1 - timeCorrelator(abs((-(a-1)+1)*lc-i)) + timeCorrelator(abs(-((a-1)*lc)-(i+1)+1)) !ichunk is 1 based,i and timeCorrelator are zero based			 
             sigma_min1 = sigma
             offsetCorrelator(a) = offsetCorrelator(a) + sigma
-         endif
-      enddo
-   enddo
+        endif
+        enddo
+    enddo
 
-	deallocate(timeCorrelator)
-   
-   !Do (F^t F)^-2
-   offsetCorrelator = offsetCorrelator/(lc**2)
-!   allocate(offsetPower(1:na/2+1) )
-   call ds_fft(offsetCorrelator,offsetPower)
-   deallocate(offsetCorrelator)
+    deallocate(timeCorrelator)
 
-   !Add this lengths's correlators to Qinv
-   offsetPower = offsetPower * whiteNoiseVariance * rho * (fknee**(-alpha))
-	if (includeWhite) offsetPower =  offsetPower + whiteNoiseVariance/lc
+    !Do (F^t F)^-2
+    offsetCorrelator = offsetCorrelator/(lc**2)
+    !allocate(offsetPower(1:na/2+1) )
+    call ds_fft(offsetCorrelator,offsetPower)
+    deallocate(offsetCorrelator)
 
-	call ds_assert(all(ds_isfinite(real(offsetPower))),"NaN or infinity detected in noise power spectrum.  Bad parameters?")
-
-
+    !Add this lengths's correlators to Qinv
+    offsetPower = offsetPower * whiteNoiseVariance * (fknee**(-alpha))
+    if (includeWhite) offsetPower =  offsetPower + whiteNoiseVariance/lc
+    call ds_assert(all(ds_isfinite(real(offsetPower))),"NaN or infinity detected in noise power spectrum.  Bad parameters?")
 end subroutine buildOneCorrelator
 
 

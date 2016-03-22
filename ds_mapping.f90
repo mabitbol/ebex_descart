@@ -30,59 +30,25 @@ integer,parameter :: bad_pixel= -1
 
 contains
 
-subroutine make_inv_Cw(noiseinfo,modulescan,cross_correlated) !called per modulescan
-
+subroutine make_inv_Cw(noiseinfo,modulescan) !called per modulescan
     type(ds_noiseinfo) :: noiseinfo
     type(ds_modulescan),intent(inout) :: modulescan
-    logical :: cross_correlated
-    integer :: i, j, ierror
-    logical :: corr
     real(dp),pointer :: sigma
 
-    modulescan%inv_Cw= 0.0_8
-    modulescan%has_white_correlations = cross_correlated
     sigma => noiseinfo%sigma
-    modulescan%inv_Cw = sigma**2
-
-    if(cross_correlated) then
-        write(*,*) "shouldnt be in here cross"
-        !make off diagonals
-        modulescan%inv_Cw = modulescan%inv_Cw
-        !inversion
-        ierror= 0 
-        stop 'JZ or DWPS sort this out'
-        call dpotrf('U',modulescan%inv_Cw,ierror)
-        call dpotri('U',modulescan%inv_Cw,ierror)
-        modulescan%inv_Cw = modulescan%inv_Cw
-    else
-        !simple inversion
-        modulescan%inv_Cw= 1.0_8 / modulescan%inv_Cw
-    endif
+    modulescan%inv_Cw = 1.0_8 / sigma**2
 end subroutine make_inv_Cw
 
 
 subroutine invCw_mult_tod(modulescan)
     type(ds_modulescan),intent(inout) :: modulescan
-    integer :: i, k
-    real(dp) :: vec
+    integer :: i
     type(ds_timestream),pointer :: timestream
-    integer length_check
 
     timestream => modulescan%timestreams
-
-    if (modulescan%has_white_correlations) then
-        write(*,*) "shouldnt be in here correlatios"
-        do i=1,timestream%nt
-            vec=0
-            vec = timestream%timestream(i)
-            vec = moduleScan%inv_Cw*vec
-            timestream%timestream(i) = vec
-        enddo
-    else !No cross correlations and so this is simpler
-        do i=1,timestream%nt
-            timestream%timestream(i) = timestream%timestream(i) * moduleScan%inv_Cw
-        enddo
-    endif
+    do i=1,timestream%nt
+        timestream%timestream(i) = timestream%timestream(i) * moduleScan%inv_Cw
+    enddo
 end subroutine invCw_mult_tod
 
 
@@ -320,6 +286,7 @@ subroutine cov_mult(maps,cov)
     else
        npix = maps%Q%npix
     endif
+
     if (maps%has_t .and. maps%has_p) then
         do p=1,npix
             t = maps%T%map(p)
