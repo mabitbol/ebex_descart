@@ -1,0 +1,6 @@
+*.o
+*.ini
+*.mod
+descart_cbass
+*.a
+ds_cbass_options.f90
