@@ -120,18 +120,17 @@ else
 
     ! This subroutine fills in the offsetSolution structure.
     call PCG(correlator,offsetTarget,offsetSolution,map_covariance,options%pcg_tolerance,options%pcg_iterations)
-
     if (myid==root) call ds_log_milestone("PCG_COMPLETE")
+
     ! Reclaim the memory used in the target data since we now have the solution.
+    if (options%save_offsets) call saveAllOffsetsToFiles(offsetSolution,options%offset_dir)
     call destroy_modulescan(offsetTarget,deallocateoffsets=.true.)
+
     ! We need to wait for all the processes to finish destriping to make maps.
 #ifndef NO_MPI
     call mpi_barrier(correlator%comm,ierr)
 #endif
     if (myid==0) call ds_log("Completed PCG",ds_feedback_quiet)
-    ! If desired, save the offsets to files.
-    ! This can be nice for diagnostics and visulaization
-    if (options%save_offsets) call saveAllOffsetsToFiles(offsetSolution,options%offset_dir)
     ! Make a naive map from all the calculated offsets.
     ! This map represents the contribution to the naive maps of correlated noise.
     ! Make navie map in multidetector
