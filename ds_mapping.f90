@@ -86,7 +86,6 @@ subroutine add2rhs(modulescan,rhs)   !called once per modulescan  !need an allre
 	call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
         R_I = modulescan%leakage(1)
         R_Q = modulescan%leakage(2)
-        R_U = modulescan%leakage(3)
         do t = 1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if (pixel==bad_pixel) cycle
@@ -115,16 +114,6 @@ subroutine add2rhs(modulescan,rhs)   !called once per modulescan  !need an allre
             rhs%T%map(pixel) = rhs%T%map(pixel) + modulescan%timestreams%timestream(t)
         enddo
     endif
-
-    !Polarization Modules
-    if (modulescan%has_p) then
-        do t = 1, modulescan%ntod
-            pixel = modulescan%pointing(t)
-            if (pixel==bad_pixel) cycle
-            rhs%Q%map(pixel) = rhs%Q%map(pixel) + cos(2.0_8 * (modulescan%theta(t))) * modulescan%timestreams%timestream(t)
-            rhs%U%map(pixel)= rhs%U%map(pixel) + sin(2.0_8 * (modulescan%theta(t))) * modulescan%timestreams%timestream(t)        
-        enddo
-    endif
 end subroutine add2rhs
 
 
@@ -143,11 +132,9 @@ subroutine add2cov(modulescan, cov) !called once per module (per code)
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
         Ri_I = modulescan%leakage(1)
         Ri_Q = modulescan%leakage(2)
-        Ri_U = modulescan%leakage(3)
         !If no noise (between these)/(in this) channel(s) then short-cut
         Rj_I = modulescan%leakage(1)
         Rj_Q = modulescan%leakage(2)
-        Rj_U = modulescan%leakage(3)
         do t=1,modulescan%ntod
             p=modulescan%pointing(t)
             if (p==bad_pixel) cycle 
@@ -187,29 +174,6 @@ subroutine add2cov(modulescan, cov) !called once per module (per code)
             cov%TT(p) = cov%TT(p) + modulescan%inv_Cw
         enddo
     endif
-
-    if (modulescan%has_p) then
-        do t=1,modulescan%ntod
-            p=modulescan%pointing(t)
-            if (p==bad_pixel) cycle
-            theta_i = 2*(modulescan%theta(t)) 
-            theta_j = 2*(modulescan%theta(t))
-            
-            cov%QQ(p) = cov%QQ(p) + cos(theta_i) * modulescan%inv_Cw * cos(theta_j)
-            cov%QU(p) = cov%QU(p) + cos(theta_i) * modulescan%inv_Cw * sin(theta_j)
-            cov%UU(p) = cov%UU(p) + sin(theta_i) * modulescan%inv_Cw * sin(theta_j)
-        enddo
-    endif
-
-    if (modulescan%has_p .and. modulescan%has_t) then
-        do t=1,modulescan%ntod
-            p=modulescan%pointing(t)
-            if (p==bad_pixel) cycle
-            theta_j = 2*(modulescan%theta(t))
-            cov%TQ(p) = cov%TQ(p) + modulescan%inv_Cw * cos(theta_j)
-            cov%TU(p) = cov%TU(p) + modulescan%inv_Cw * sin(theta_j)
-        enddo
-    endif
 end subroutine add2cov
 
 
@@ -231,7 +195,6 @@ subroutine map2tod(modulescan,maps) !called once per module per projection
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
         R_I = modulescan%leakage(1)
         R_Q = modulescan%leakage(2)
-        R_U = modulescan%leakage(3)
         do t=1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if(pixel==bad_pixel) cycle
@@ -252,16 +215,6 @@ subroutine map2tod(modulescan,maps) !called once per module per projection
             pixel = modulescan%pointing(t)
             if(pixel==bad_pixel) cycle	
             modulescan%timestreams%timestream(t) = maps%T%map(pixel)
-        enddo
-    endif
-
-    if (modulescan%has_p) then
-        do t= 1, modulescan%ntod
-            pixel = modulescan%pointing(t)
-            if(pixel==bad_pixel) cycle	
-            modulescan%timestreams%timestream(t) = &
-                cos(2.0_8 * (modulescan%theta(t))) * maps%Q%map(pixel) + &
-                sin(2.0_8 * (modulescan%theta(t))) * maps%U%map(pixel)
         enddo
     endif
 end subroutine map2tod
@@ -296,13 +249,6 @@ subroutine cov_mult(maps,cov)
             maps%Q%map(p) = cov%TQ(p)*t + cov%QQ(p)*q + cov%QU(p)*u
             maps%U%map(p) = cov%TU(p)*t + cov%QU(p)*q + cov%UU(p)*u
         enddo
-    else if (maps%has_p) then
-        do p=1,npix
-            q = maps%Q%map(p)
-            u = maps%U%map(p)
-            maps%Q%map(p) = cov%QQ(p)*q + cov%QU(p)*u
-            maps%U%map(p) = cov%QU(p)*q + cov%UU(p)*u
-        enddo		
     else if (maps%has_t) then
         do p=1,npix
             t = maps%T%map(p)
@@ -358,18 +304,6 @@ subroutine invert_weight(cov)  !to be used once per code. cov= W^-1
     else if (cov%has_t) then  !The covariance is a 1x1 matrix
         do p=1,cov%npix
             cov%TT(p) = 1/cov%TT(p)
-        enddo
-    else if (cov%has_p) then  !The covariance is a 2x2 matrix
-        do p=1,cov%npix
-            a11 = cov%QQ(p)
-            a12 = cov%QU(p)
-            a21 = a12
-            a22 = cov%UU(p)
-            det = a11*a22-a12*a21
-            det = 1.0/det
-            cov%QQ(p) =  a22*det
-            cov%QU(p) = -a12*det
-            cov%UU(p) =  a11*det
         enddo
     else
         call ds_assert(.false.,"In invert_weight: neither temperature nor polarization found")	

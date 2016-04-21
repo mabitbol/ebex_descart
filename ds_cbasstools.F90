@@ -196,7 +196,7 @@ subroutine readDataAssignWork(fileList,scans,noiseInfo,correlator,originalIndice
             if (scanInfo%owner == rank) then
                 scan=>scans(my_ms)
                 call setup_moduleScan(scan)
-                call buildLeakageInfo(scanInfo, scan, opt)
+                call buildLeakageInfo(scan)
                 nullify(scan%theta)
                 nullify(scan%pointing) !DWPS: always nullify pointers when you make them
                 allocate(noiseInfo(my_ms)%sigma)
@@ -1059,25 +1059,12 @@ subroutine buildNoiseInfo(info,noise,mjd,opt)
 end subroutine buildNoiseInfo
 
 
-subroutine buildLeakageInfo(info, scan, opt)
-	type(ds_moduleScanInfo) :: info  !Not used right now but probably will if we switch to using variable leakage matrices.
+subroutine buildLeakageInfo(scan)
 	type(ds_modulescan) :: scan
-	type(ds_cbass_options) :: opt
-	integer :: lun, i
 
-	if (len_trim(opt%leakage_matrix) .gt. 0) then
-            lun = ds_get_lun()
-            open(unit=lun, file=trim(opt%leakage_matrix), status='old')
-            scan%has_leakage_matrix = .true.
-            read(lun,*) scan%leakage(1), scan%leakage(2), scan%leakage(3)
-            close(unit=lun)
-	else
-            scan%leakage(1) = 1.0
-            scan%leakage(2) = 0.5
-            scan%leakage(3) = 0.0
-            scan%has_leakage_matrix = .true.
-            !scan%has_leakage_matrix = .false.
-	endif
+        scan%leakage(1) = 1.0
+        scan%leakage(2) = 0.5
+        scan%has_leakage_matrix = .true.
 end subroutine buildLeakageInfo
 
 

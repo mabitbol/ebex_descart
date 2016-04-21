@@ -110,7 +110,7 @@ subroutine setup_moduleScan(ms)
         allocate(ms%flagged)
         allocate(ms%timestreams)
         allocate(ms%offsets)
-        allocate(ms%leakage(3))
+        allocate(ms%leakage(2))
         ms%leakage = sqrt(dummy)
         ms%has_leakage_matrix=.false. !By default, make this false to preserve current behviour
 
