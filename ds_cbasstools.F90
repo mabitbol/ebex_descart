@@ -1075,8 +1075,8 @@ subroutine buildLeakageInfo(info, scan, opt)
             scan%leakage(1) = 1.0
             scan%leakage(2) = 0.5
             scan%leakage(3) = 0.0
-            scan%has_leakage_matrix = .true.
-            !scan%has_leakage_matrix = .false.
+            !scan%has_leakage_matrix = .true.
+            scan%has_leakage_matrix = .false.
 	endif
 end subroutine buildLeakageInfo
 
