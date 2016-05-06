@@ -84,8 +84,10 @@ subroutine add2rhs(modulescan,rhs)   !called once per modulescan  !need an allre
 
     if (modulescan%has_leakage_matrix) then
 	call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        R_I = modulescan%leakage(1)
-        R_Q = modulescan%leakage(2)
+        !R_I = 1./modulescan%leakage(1)
+        !R_Q = 1./modulescan%leakage(2)
+        R_I = 1.0
+        R_Q = 2.0
         do t = 1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if (pixel==bad_pixel) cycle
@@ -123,18 +125,17 @@ subroutine add2cov(modulescan, cov) !called once per module (per code)
     integer :: t, p, i, j
     real(dp) :: theta_i, theta_j
     real(dp) :: theta, sin_t, cos_t, cw
-    real(dp) :: Ri_I, Ri_Q, Ri_U, Rj_I, Rj_Q, Rj_U
+    real(dp) :: R_I, R_Q
     real(dp) :: Fi_I, Fi_Q, Fi_U, Fj_I, Fj_Q, Fj_U
 
     if (modulescan%has_t) call ds_assert(cov%has_t, "Naive cov has no temperature in add2cov")
     if (modulescan%has_p) call ds_assert(cov%has_p, "Naive cov has no temperature in add2cov")
     if (modulescan%has_leakage_matrix) then
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        Ri_I = modulescan%leakage(1)
-        Ri_Q = modulescan%leakage(2)
-        !If no noise (between these)/(in this) channel(s) then short-cut
-        Rj_I = modulescan%leakage(1)
-        Rj_Q = modulescan%leakage(2)
+        !R_I = modulescan%leakage(1)
+        !R_Q = modulescan%leakage(2)
+        R_I = 1.0
+        R_Q = sqrt(2.0)
         do t=1,modulescan%ntod
             p=modulescan%pointing(t)
             if (p==bad_pixel) cycle 
@@ -142,12 +143,12 @@ subroutine add2cov(modulescan, cov) !called once per module (per code)
                 theta = 2*modulescan%theta(t)			
                 cos_t = cos(theta)
                 sin_t = sin(theta)
-                Fi_I = Ri_I
-                Fi_Q = Ri_Q*cos_t 
-                Fi_U = Ri_Q*sin_t 
-                Fj_I = Rj_I
-                Fj_Q = Rj_Q*cos_t 
-                Fj_U = Rj_Q*sin_t 
+                Fi_I = R_I
+                Fi_Q = R_Q*cos_t 
+                Fi_U = R_Q*sin_t 
+                Fj_I = R_I
+                Fj_Q = R_Q*cos_t 
+                Fj_U = R_Q*sin_t 
                 cw = modulescan%inv_Cw
                 cov%TT(p) = cov%TT(p) + Fi_I*cw*Fj_I
                 cov%TQ(p) = cov%TQ(p) + Fi_I*cw*Fj_Q
@@ -193,8 +194,10 @@ subroutine map2tod(modulescan,maps) !called once per module per projection
 
     if (modulescan%has_leakage_matrix) then
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        R_I = modulescan%leakage(1)
-        R_Q = modulescan%leakage(2)
+        !R_I = modulescan%leakage(1)
+        !R_Q = modulescan%leakage(2)
+        R_I = 1.0
+        R_Q = 1.0
         do t=1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if(pixel==bad_pixel) cycle
@@ -205,7 +208,7 @@ subroutine map2tod(modulescan,maps) !called once per module per projection
             i_t = maps%T%map(pixel)
             q_t = maps%Q%map(pixel)
             u_t = maps%U%map(pixel)
-            modulescan%timestreams%timestream(t) = R_I*i_t + R_Q*( cos_i*q_t + sin_i*u_t) 
+            modulescan%timestreams%timestream(t) = R_I*i_t + R_Q*(cos_i*q_t + sin_i*u_t) 
         enddo
         return 
     endif

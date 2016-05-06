@@ -1051,9 +1051,9 @@ end subroutine buildNoiseInfo
 
 subroutine buildLeakageInfo(scan)
 	type(ds_modulescan) :: scan
-
+        ! leakage is map to time domain
         scan%leakage(1) = 1.0
-        scan%leakage(2) = 0.5
+        scan%leakage(2) = 1.0
         scan%has_leakage_matrix = .true.
 end subroutine buildLeakageInfo
 
