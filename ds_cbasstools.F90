@@ -1,12 +1,3 @@
-! This file is the main one to change when creating a new executable for a new experiment.
-!
-! Its job is to read in the data and get it in the format used by the rest of the code.
-! It also makes a naive map as it goes along.  Since there are a number of pieces of auxiliary information
-! that need to be loaded in this code is a little complicated.
-
-!Stolen from some nice person on comp.lang.fortran circa 2006
-
-
 module ds_cbass_fitstools
     use ds_types
     use ds_utils
@@ -24,7 +15,7 @@ module ds_cbass_fitstools
     use fl_lists
     implicit none
 
-    real(dp), parameter :: DEGRA = 0.0174532925
+    real(dp), parameter :: DEGRA = 0.017453292519943295
     integer, parameter :: NCHANNEL = 2
 
     integer, parameter :: FITS_READ_ONLY = 0
@@ -517,7 +508,6 @@ subroutine load_noise_columns(unit, nscan, noise_data, status, opt)
 	integer nscan
 	integer file_format
 	integer, parameter :: number_noise_parameters = 3
-!	character(len=5), dimension(number_noise_parameters), parameter :: noise_parameters = (/ "sigma", "fknee" ,"alpha" /)
 	integer i,d
 	logical anyf
 	character(16) :: column_name
@@ -585,7 +575,6 @@ subroutine get_scan_from_fits(info,full_data,detector_list,noise,moduleScan,opt)
 	moduleScan%has_P = do_P
 	
 	!Determine the size of this timestream
-	
 	start =  info%first_index
 	finish = info%last_index
 	ntod = finish - start + 1
@@ -653,7 +642,6 @@ subroutine buildModuleScanList(modScanList,filename_list, detector_list, opt, ca
 ! The job of this function is to build up a list of scans to be read.
 ! These are not yet read at this stage but will be later.
 ! The modScanList object is a linked-list of modScanInfo objects.
-
 
 	type(ds_moduleScanList) :: modScanList
 	type(ds_cbass_options) :: opt
@@ -900,6 +888,7 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
             do p=0,maxIndex-1
                 write(25,*) p,hitCount(p)
             enddo
+            close(unit=25)
 	endif
 
 	!Count the number of hit pixels to get the total npix
@@ -912,10 +901,12 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
 	!if the pixels have only a single hit, they are bad. So set pointing to bad_pixel flag for those
 	!pixels (ds_mapping knows how to handle them).  Also remove from the map, by removing number of 
 	!bad pixels from npix and setting the hitcount for those pixels to 0.
+
 	nbad=0
 	do p=0,maxIndex-1	
             if(hitCount(p)==1 .or. (hitCount(p)<min_hits .and. hitCount(p)>0)) nbad = nbad+1
 	enddo
+
 	do i=0,correlator%my_nmodules-1
             do t=1,moduleScans(i)%ntod
                 p=moduleScans(i)%pointing(t)
@@ -947,7 +938,6 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
                     q=q+1
                 endif
             enddo
-            write(*,*) minval(originalIndices)
 	endif
 	!Relabel the hit count map so that it contains the new index for each healpix pixel
 	!instead of the hit count.  This will be useful for re-pixelizing the pointings and maps

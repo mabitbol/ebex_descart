@@ -24,7 +24,8 @@ type(ds_trimap) :: data_maps, offset_maps
 type(ds_correlator) :: correlator
 type(ds_covariance) :: map_covariance
 integer :: nd, d
-real(dp), parameter :: sampling_rate = 190.73486328125
+!real(dp), parameter :: sampling_rate = 190.73486328125
+real(dp), parameter :: sampling_rate = 11.0
 real(dp), parameter :: nyquist = sampling_rate / 2
 character(256) :: offset_dir
 integer ndet_total
