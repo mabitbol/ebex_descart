@@ -113,7 +113,6 @@ subroutine setup_moduleScan(ms)
         allocate(ms%leakage(2))
         ms%leakage = sqrt(dummy)
         ms%has_leakage_matrix=.false.
-
 end subroutine setup_moduleScan
 
 
