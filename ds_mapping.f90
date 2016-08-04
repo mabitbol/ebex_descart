@@ -84,10 +84,8 @@ subroutine add2rhs(modulescan,rhs)   !called once per modulescan  !need an allre
 
     if (modulescan%has_leakage_matrix) then
 	call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        !R_I = 1./modulescan%leakage(1)
-        !R_Q = 1./modulescan%leakage(2)
         R_I = 1.0
-        R_Q = 2.0
+        R_Q = 1.0
         do t = 1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if (pixel==bad_pixel) cycle
@@ -96,7 +94,8 @@ subroutine add2rhs(modulescan,rhs)   !called once per modulescan  !need an allre
                 rhs%Q%map(pixel) = rhs%Q%map(pixel) + 0.0
                 rhs%U%map(pixel) = rhs%U%map(pixel) + 0.0
             else
-                theta = 2.0 * modulescan%theta(t)
+                !theta = 2.0 * modulescan%theta(t)
+                theta = modulescan%theta(t)
                 cos_i = cos(theta)
                 sin_i = sin(theta)
                 S_t = modulescan%timestreams%timestream(t)
@@ -132,15 +131,14 @@ subroutine add2cov(modulescan, cov) !called once per module (per code)
     if (modulescan%has_p) call ds_assert(cov%has_p, "Naive cov has no temperature in add2cov")
     if (modulescan%has_leakage_matrix) then
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        !R_I = modulescan%leakage(1)
-        !R_Q = modulescan%leakage(2)
         R_I = 1.0
-        R_Q = sqrt(2.0)
+        R_Q = 1.0
         do t=1,modulescan%ntod
             p=modulescan%pointing(t)
             if (p==bad_pixel) cycle 
             if (modulescan%flagged%flagged(t) .ne. 0) then
-                theta = 2*modulescan%theta(t)			
+                !theta = 2*modulescan%theta(t)			
+                theta = modulescan%theta(t)			
                 cos_t = cos(theta)
                 sin_t = sin(theta)
                 Fi_I = R_I
@@ -194,15 +192,14 @@ subroutine map2tod(modulescan,maps) !called once per module per projection
 
     if (modulescan%has_leakage_matrix) then
         call ds_assert(modulescan%has_t .and. modulescan%has_p, "Can only use leakage matrix if using full T+P mapping")
-        !R_I = modulescan%leakage(1)
-        !R_Q = modulescan%leakage(2)
         R_I = 1.0
         R_Q = 1.0
         do t=1, modulescan%ntod
             pixel = modulescan%pointing(t)
             if(pixel==bad_pixel) cycle
             !if (modulescan%flagged(i)%flagged(t).eq.0.0) cycle
-            theta_i = 2*modulescan%theta(t)
+            !theta_i = 2*modulescan%theta(t)
+            theta_i = modulescan%theta(t)
             cos_i = cos(theta_i)
             sin_i = sin(theta_i)
             i_t = maps%T%map(pixel)

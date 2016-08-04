@@ -35,12 +35,9 @@ type ds_modulescan
     integer,pointer,dimension(:) :: pointing
     real(dp),pointer,dimension(:) :: theta !radians!
     logical :: has_p, has_t
-    !type(ds_flagged),pointer, dimension(:) :: flagged
-    !type(ds_timestream),pointer, dimension(:) :: timestreams !will have dimension ndiodes_max
-    !type(ds_offsets),pointer, dimension(:) :: offsets  !Will rename later.
     type(ds_flagged),pointer :: flagged
-    type(ds_timestream),pointer :: timestreams !will have dimension ndiodes_max
-    type(ds_offsets),pointer :: offsets  !Will rename later.
+    type(ds_timestream),pointer :: timestreams 
+    type(ds_offsets),pointer :: offsets  
     integer, dimension(3) :: id !JAZ - run, scan, seg
     real(dp) :: scanfreq
     logical :: has_leakage_matrix

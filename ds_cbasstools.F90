@@ -16,7 +16,7 @@ module ds_cbass_fitstools
     implicit none
 
     real(dp), parameter :: DEGRA = 0.017453292519943295
-    integer, parameter :: NCHANNEL = 2
+    integer, parameter :: NCHANNEL = 1
 
     integer, parameter :: FITS_READ_ONLY = 0
     integer, parameter :: FITS_CASE_INSENSITIVE = 0
@@ -414,13 +414,10 @@ subroutine load_full_file_fits(filename,detector_list,data,opt)
             !write(*,*) "flag buff", data%flagged(i,1)
             deallocate(buffer_int)
             call FTGCNO(unit,FITS_CASE_INSENSITIVE,column_name,column_number,status)
-            !call FTGCNO(unit,FITS_CASE_INSENSITIVE,flag_column,flag_num,status)
             first_row=1
             first_element=1
             call FTGCVE(unit,column_number,first_row,first_element,data%n,null_value, &
                    data%channel_data(i,:),anyf,status)
-            !call FTGCVI(unit,flag_num,first_row,first_element,data%n,null_value, &
-                  ! data%flagged(i,:),anyf,status)
 	enddo	
 	!Check for errors and close the file.
 	call fatal_fits_error(status, "Error reading from file:"//trim(filename))
@@ -610,9 +607,15 @@ subroutine get_scan_from_fits(info,full_data,detector_list,noise,moduleScan,opt)
         call prepareFlagged(moduleScan%flagged,ntod)
         moduleScan%timestreams%timestream = full_data%channel_data(detector_index,start:finish)
         moduleScan%flagged%flagged = full_data%flagged(detector_index,start:finish)
-        do t=1,ntod
-            moduleScan%timestreams%timestream(t) = moduleScan%timestreams%timestream(t)
-        enddo
+
+        !Subtract the mean of the data
+        !if (.true.) then				
+        !    mu = sum(moduleScan%timestreams%timestream)/ntod
+        !    do t=1,ntod
+        !            moduleScan%timestreams%timestream(t) = moduleScan%timestreams%timestream(t) - mu						
+        !    enddo
+        !endif
+
 end subroutine get_scan_from_fits
 
 
@@ -870,7 +873,7 @@ subroutine repixelizeData(correlator,moduleScans,maxIndex,originalIndices,maps,o
 	do i=0,correlator%my_nmodules-1
             do t=1,moduleScans(i)%ntod
                 p=moduleScans(i)%pointing(t)
-                !if (moduleScans(i)%flagged(d)%flagged(t) .eq. 0 ) cycle
+                if (moduleScans(i)%flagged%flagged(t) .eq. 0 ) cycle
                 if (p>=0) hitCount(p)=hitCount(p)+1
             enddo
 	enddo
@@ -1088,7 +1091,8 @@ subroutine get_parallactic_angle(n,parangle,hwp,par)
 	real(dp), dimension(1:n) :: parangle,hwp,par
 
 	do i=1,n
-            par(i) = 2.0*hwp(i) + parangle(i)
+            !par(i) = 2.0*hwp(i) + parangle(i)
+            par(i) = hwp(i)
 	enddo
 end subroutine
 
